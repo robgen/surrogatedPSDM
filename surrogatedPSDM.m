@@ -1,5 +1,5 @@
 classdef surrogatedPSDM
-    %surrogatePSDM
+    %surrogatedPSDM
     
     properties
         parameters
@@ -230,98 +230,6 @@ classdef surrogatedPSDM
         end
         
         
-        function [fragMedian, fragStDev, ...
-                powerLaw, isExtrapolated] = predictFragGP2(self, ...
-                hyst, T, fy, muNC, hard, ductThresholds)
-            % related to mu-1=(R-1)^b
-            % DELETEME
-            
-            
-            % hyst must be a column cell array
-            inputTable = table;
-            inputTable.HYST = hyst;
-            inputTable.per(:) = T;
-            inputTable.strength(:) = fy;
-            inputTable.duct(:) = muNC;
-            inputTable.hard(:) = hard;
-            
-            % predict power law parameters
-            isExtrapolated = zeros(numel(T),1);
-            for r = 3 : -1 : 1
-                inputInd = getInputIndices(self, ...
-                    inputTable, self.nameRegs{r});
-                powerLaw(:,r) = predict(...
-                    self.GPregs.(self.nameRegs{r}), inputTable(:,inputInd) );
-                
-                % find extrapolations
-                namePredictors = self.GPregs.(self.nameRegs{r}).PredictorNames;
-                namePredictors(strcmp(namePredictors, 'HYST')) = [];
-                for p = 1 : numel(namePredictors)
-                    minP = min(self.GPregs.(self.nameRegs{r}).X.(namePredictors{p}));
-                    maxP = max(self.GPregs.(self.nameRegs{r}).X.(namePredictors{p}));
-                    isExtrapolated = isExtrapolated | ...
-                        inputTable.(namePredictors{p}) < minP | ...
-                        inputTable.(namePredictors{p}) > maxP;
-                end
-            end
-            
-            if nargin == 7
-                % fragility medians
-                for m = numel(T) : -1 : 1
-                    %%% CASE 1
-                    elasticCases = ductThresholds(m,:) <= 1;
-                    
-                    fragMedian(m,elasticCases) = ...
-                        ductThresholds(m,elasticCases) * fy(m);
-                    fragMedian(m,~elasticCases) = self.PSDMformula.R(...
-                        ductThresholds(m,~elasticCases), ...
-                        powerLaw(m,1), powerLaw(m,2)) * fy(m);
-                    
-                    % fragility dispersion
-                    fractile16R(m,~elasticCases) = self.PSDMformula.R(...
-                        ductThresholds(m,~elasticCases), ...
-                        exp(log(powerLaw(m,1))+powerLaw(m,3)), powerLaw(m,2));
-                    fractile50R(m,~elasticCases) = self.PSDMformula.R(...
-                        ductThresholds(m,~elasticCases), ...
-                        powerLaw(m,1), powerLaw(m,2));
-                    
-                    fragStDev(m,elasticCases) = 0.01;
-                    fragStDev(m,~elasticCases) = log(...
-                        fractile50R(m,~elasticCases) ./ ...
-                        fractile16R(m,~elasticCases));
-                    
-%                     %%% CASE 3
-%                     elasticCases = ductThresholds(m,:) <= 1;
-%                     
-%                     fragMedian(m,elasticCases) = ...
-%                         ductThresholds(m,elasticCases) * fy(m);
-%                     fragMedian(m,~elasticCases) = self.PSDMformula.R(...
-%                         ductThresholds(m,~elasticCases), ...
-%                         powerLaw(m,1), 0) * fy(m);
-%                     
-%                     % fragility dispersion
-%                     fractile16R(m,elasticCases) = ...
-%                         ductThresholds(m,elasticCases) .* ...
-%                         self.PSDMformula.R(1, powerLaw(m,1), powerLaw(m,3));
-%                     fractile16R(m,~elasticCases) = self.PSDMformula.R(...
-%                         ductThresholds(m,~elasticCases), ...
-%                         powerLaw(m,1), powerLaw(m,3));
-%                     
-%                     fractile50R(m,elasticCases) = ...
-%                         ductThresholds(m,elasticCases);
-%                     fractile50R(m,~elasticCases) = self.PSDMformula.R(...
-%                         ductThresholds(m,~elasticCases), ...
-%                         powerLaw(m,1), 0);
-%                     
-%                     fragStDev(m,:) = log(...
-%                         fractile50R(m,:) ./ fractile16R(m,:));
-                end
-            else
-                fragMedian = NaN;
-                fragStDev = NaN;
-            end
-        end
-        
     end
     
     
@@ -417,51 +325,6 @@ classdef surrogatedPSDM
 %             xlabel('R [-]')
 %             ylabel('\mu [-]')
 %             set(gca, 'FontSize', 18)
-            
-        end
-        
-        
-        function [a, b, sigma, NpointsReg, PSDMformula, fragFormula] = ...
-                fitPSDM2(IM, EDP, EDPyield, EDPds4)
-            %fitPSDM fits the law MU = (R-1).^b + 1; R = SA/SAy
-            %
-            % DELETEME
-            
-            toInclude = EDP >= EDPyield & EDP <= EDPds4;
-            NpointsReg = sum(toInclude);
-            
-            % CASE 1 - ln w/o intercept
-            [xData, yData] = prepareCurveData( ...
-                log(IM(toInclude)-1), log(EDP(toInclude)-1) );
-            
-            lm = fitlm(xData, yData, 'Intercept', false);
-            a = 1;
-            b = lm.Coefficients.Estimate;
-
-            resid = log(EDP(toInclude)-1) - (log(a) + b.*log(IM(toInclude)-1));
-            sigma = std( resid );
-
-            PSDMformula.mu = @(R,a,b) ( a.*(R-1).^b + 1 );
-            PSDMformula.R = @(mu,a,b) ( exp( (log(mu-1) - log(a))./b ) + 1);
-            
-            PSDMformula.mu = @(R,b,sigma) ( exp(b.*log(R-1) + sigma) );
-            PSDMformula.R = @(mu,a,b) ( exp( (log(mu-1) - log(a))./b ) + 1);
-            
-            fragFormula.eta = @(muCap,b) ( exp( log(muCap-1)/b ) );
-            fragFormula.beta = @(b,sigma) ( sigma/b );
-
-            %%% Control plot
-            dummyMU = 1:0.01:5;
-            figure; hold on
-            plot([0 PSDMformula.R(dummyMU, a, b)], [0 dummyMU], 'k', ...
-                'LineWidth', 2)
-            plot([0 PSDMformula.R(dummyMU, exp(log(a)+sigma), b)], ...
-                [0 dummyMU], '--k', 'LineWidth', 1)
-            plot([0 PSDMformula.R(dummyMU, exp(log(a)-sigma), b)], ...
-                [0 dummyMU], '--k', 'LineWidth', 1)
-            xlabel('R [-]')
-            ylabel('\mu [-]')
-            set(gca, 'FontSize', 18)
             
         end
         
