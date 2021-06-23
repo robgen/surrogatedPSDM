@@ -6,7 +6,7 @@ This Matlab class allows to train a surrogated probabilistic seismic demand mode
 
 A trained model is already provided for ready predictions, including the training data involving non-linear time history analyses of 10000 SDoF systems. The user is free to add or remove training data and re-train the model, and running a k-fold cross validation.
 
-![slopePrediction](https://github.com/robgen/distNPVaggregateLosses/blob/main/slope.gif)
+![slopePrediction](https://github.com/robgen/surrogatedPSDM/blob/main/slope.gif)
 
 ---
 ## Buy me a coffee
