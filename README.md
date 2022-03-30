@@ -35,7 +35,8 @@ Clone this repo to any folder in your computer. Add this folder to the Matlab pa
 ## Usage
 A full demo of this class is given in the file testModel.m
 If you use this model for formal applications, please cite the following paper:
-Gentile, R. and Galasso, C. (2021) ‘A surrogate probabilistic seismic demand model of inelastic SDoF systems for efficient seismic risk analysis applications of structures’, Earthquake Engineering & Structural Dynamics, under rev.
+Gentile R, Galasso C. Surrogate probabilistic seismic demand modelling of inelastic single‐degree‐of‐freedom systems for efficient earthquake risk applications. Earthquake Engineering & Structural Dynamics 2022; 51(2): 492–511. DOI: 10.1002/eqe.3576.
+
 ---
 
 ## License
