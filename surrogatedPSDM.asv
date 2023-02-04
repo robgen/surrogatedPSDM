@@ -209,6 +209,8 @@ classdef surrogatedPSDM
                         inputTable.(namePredictors{p}) > maxP;
                 end
             end
+            
+            maxAllowedIM = self.getMaxAllowedIM(inputTable);
 
             if nargin == 6
                 for m = numel(T) : -1 : 1
@@ -227,12 +229,6 @@ classdef surrogatedPSDM
                 fragMedian = NaN;
                 fragStDev = NaN;
             end
-
-            if nargout == 5
-                maxAllowedIM = self.getMaxAllowedIM(inputTable);
-            else
-                maxAllowedIM = NaN;
-            end
         end
         
         
@@ -250,14 +246,14 @@ classdef surrogatedPSDM
                               oneHystAllData.hard];
                 kdtree = KDTreeSearcher(gridPoints);
 
-                for p = size(oneHystInputTable,1) : -1 : 1
+                for p = 1 : size(oneHystInputTable,1)
                     targetPoint = [oneHystInputTable.per(p), ...
                         oneHystInputTable.strength(p), ...
                         oneHystInputTable.hard(p)];
                     [index, ~] = knnsearch(kdtree, targetPoint);
-                    oneHystMaxAllowedIM(p,1) = max(self.allData.SA{index});
+                    maxAllowedIM(p) = max(self.allData.SA{index});
                 end
-                maxAllowedIM(strcmp(inputTable.HYST, hyst(h))) = oneHystMaxAllowedIM;
+                start = 
             end
         end
 
