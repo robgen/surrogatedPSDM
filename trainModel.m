@@ -41,6 +41,6 @@ if strcmp(options.PSDM.fx, 'bilinear')
     save('fullFit.mat', 'fullFit')
     save('fullFitKfold.mat', 'summaryKfold', 'kFoldGPs')
 else
-    save('fullFitPowerLaw.mat', 'fullFit')
-    save('fullFitKfoldPowerLaw.mat', 'summaryKfold', 'kFoldGPs')
+    save('fullFitPowerLaw.mat', 'fullFit', '-v7.3')
+    save('fullFitKfoldPowerLaw.mat', 'summaryKfold', 'kFoldGPs', '-v7.3')
 end
