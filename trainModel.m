@@ -9,10 +9,10 @@ optionsGP.HyperparameterOptimizationOptions = ...
     struct('UseParallel',true, 'Verbose', 0);
 
 options.GP.optionsGP = optionsGP;
-options.GP.slopeInput = {'HYST', 'per', 'strength', 'hard'};
-options.GP.sigmaInput = {'HYST', 'per', 'strength', 'hard'};
+options.GP.variablesInput = {'HYST', 'per', 'strength', 'hard'};
 
-options.General.minPointsPSDM = 70;
+options.PSDM.minPoints = 70;
+options.PSDM.fx = 'powerlaw'; % 'bilinear', 'powerlaw'
 MUds4 = 7; % ductility at DS4 (used as limit for the analyses)
 
 kFold = 10;
@@ -27,8 +27,6 @@ fullFit = fullFit.getTrainingPSDM(MUds4);
 
 fullFit = fullFit.fitGPregression;
 
-save('fullFit.mat', 'fullFit')
-
 %% Validation 
 
 % test within the training set
@@ -37,4 +35,12 @@ fullFit = fullFit.getErrorGP;
 % k-fold cross validation
 [summaryKfold, kFoldGPs] = fullFit.kFoldGPs(kFold);
 
-save('fullFitKfold.mat', 'summaryKfold', 'kFoldGPs')
+%% Save
+
+if strcmp(options.PSDM.fx, 'bilinear')
+    save('fullFit.mat', 'fullFit')
+    save('fullFitKfold.mat', 'summaryKfold', 'kFoldGPs')
+else
+    save('fullFitPowerLaw.mat', 'fullFit')
+    save('fullFitKfoldPowerLaw.mat', 'summaryKfold', 'kFoldGPs')
+end

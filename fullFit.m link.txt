@@ -1,3 +1,7 @@
-Please download using this link
+Please download using these links
 
+Bi-linear PSDM
 https://www.dropbox.com/scl/fi/hl0yoqyj30ab96ciy8vwh/fullFit.mat?rlkey=vqxvz4ec2egn76ss8i19bq0u5&dl=0
+
+Power law PSDM
+https://www.dropbox.com/scl/fi/8h98r7tpjlc26kym3xrqp/fullFitPowerLaw.mat?rlkey=svnhq94v3i3dzbvg40kr1y86u&dl=0

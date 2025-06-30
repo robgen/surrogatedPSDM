@@ -16,7 +16,7 @@ classdef surrogatedPSDM
     
     properties(Access = 'private')
 
-        nameRegs = {'slope', 'sigma'};
+        nameRegs
     end
     
     
@@ -29,6 +29,14 @@ classdef surrogatedPSDM
             self = setAllParameters(self, options);
             
             self.allData = allData;
+
+            if strcmp(self.parameters.PSDM.fx, 'bilinear')
+                self.nameRegs = {'slope', 'sigma'};
+            elseif strcmp(self.parameters.PSDM.fx, 'powerlaw')
+                self.nameRegs = {'a', 'b', 'sigma'};
+            else
+                error('fx can only be bilinear or powerlaw')
+            end
             
         end
         
@@ -46,21 +54,40 @@ classdef surrogatedPSDM
                 end
             end
             
-            for m = size(self.allData,1) : -1 : 1
-                [self.PSDMtrain(m,1), self.PSDMtrain(m,2), ...
-                    self.PSDMtrain(m,3)] = self.fitPSDM(...
-                    self.allData.SA{m} / self.allData.strength(m), ...
-                    self.allData.edpTHmax{m} / self.allData.Dyield(m), ...
-                    MUds4(m));
+            if strcmp(self.parameters.PSDM.fx, 'bilinear')
+                for m = size(self.allData,1) : -1 : 1
+                    [self.PSDMtrain(m,1), self.PSDMtrain(m,2), ...
+                        self.PSDMtrain(m,3)] = self.fitPSDMbilinear(...
+                        self.allData.SA{m} / self.allData.strength(m), ...
+                        self.allData.edpTHmax{m} / self.allData.Dyield(m), ...
+                        MUds4(m));
+                end
+                
+                [~,~,~,self.PSDMformula, self.fragFormula] = self.fitPSDMbilinear(...
+                        self.allData.SA{m} / self.allData.strength(m), ...
+                        self.allData.edpTHmax{m} / self.allData.Dyield(m), ...
+                        MUds4(m));
+
+                self.isAcceptable = self.PSDMtrain(:,3) >= ...
+                    self.parameters.PSDM.minPoints;
+            else
+                for m = size(self.allData,1) : -1 : 1
+                    [self.PSDMtrain(m,1), self.PSDMtrain(m,2), ...
+                        self.PSDMtrain(m,3), self.PSDMtrain(m,4)] = self.fitPSDMpowerlaw(...
+                        self.allData.SA{m} / self.allData.strength(m), ...
+                        self.allData.edpTHmax{m} / self.allData.Dyield(m), ...
+                        MUds4(m));
+                end
+                
+                [~,~,~,~, self.PSDMformula, self.fragFormula] = self.fitPSDMpowerlaw(...
+                        self.allData.SA{m} / self.allData.strength(m), ...
+                        self.allData.edpTHmax{m} / self.allData.Dyield(m), ...
+                        MUds4(m));
+
+                self.isAcceptable = self.PSDMtrain(:,4) >= ...
+                    self.parameters.PSDM.minPoints;
             end
             
-            [~,~,~,self.PSDMformula, self.fragFormula] = self.fitPSDM(...
-                    self.allData.SA{m} / self.allData.strength(m), ...
-                    self.allData.edpTHmax{m} / self.allData.Dyield(m), ...
-                    MUds4(m));
-            
-            self.isAcceptable = self.PSDMtrain(:,3) >= ...
-                self.parameters.General.minPointsPSDM;
         end
         
         
@@ -69,7 +96,7 @@ classdef surrogatedPSDM
             optionsNameValue = self.struct2pairs(self.parameters.GP.optionsGP);
             
             for r = 1 : numel(self.nameRegs)
-                inputInd = getInputIndices(self, self.allData, self.nameRegs{r});
+                inputInd = getInputIndices(self, self.allData);
                 
                 self.GPregs.(self.nameRegs{r}) = fitrgp(...
                     self.allData(self.isAcceptable,inputInd), ...
@@ -130,8 +157,7 @@ classdef surrogatedPSDM
             
             nReg = numel(self.nameRegs);
             for r = 1 : nReg
-                inputInd = getInputIndices(self, ...
-                    self.allData, self.nameRegs{r});
+                inputInd = getInputIndices(self, self.allData);
                 
                 self.PSDMtrainGP(:,r) = predict(...
                     self.GPregs.(self.nameRegs{r}), ...
@@ -193,8 +219,7 @@ classdef surrogatedPSDM
             % predict power law parameters
             isExtrapolated = zeros(numel(T),1);
             for r = numel(self.nameRegs) : -1 : 1
-                inputInd = getInputIndices(self, ...
-                    inputTable, self.nameRegs{r});
+                inputInd = getInputIndices(self, inputTable);
                 powerLaw(:,r) = predict(...
                     self.GPregs.(self.nameRegs{r}), inputTable(:,inputInd) );
                 
@@ -212,16 +237,27 @@ classdef surrogatedPSDM
 
             if nargin == 6
                 for m = numel(T) : -1 : 1
-                    elasticCases = ductThresholds(m,:) <= 1;
-                    
-                    fragMedian(m,elasticCases) = ...
-                        ductThresholds(m,elasticCases) * fy(m);
-                    fragMedian(m,~elasticCases) = self.fragFormula.eta(...
-                        ductThresholds(m,~elasticCases), powerLaw(m,1)) * fy(m);
-                    
-                    fragStDev(m,elasticCases) = 0.01;
-                    fragStDev(m,~elasticCases) = self.fragFormula.beta(...
-                        powerLaw(m,2));
+                    if strcmp(self.parameters.PSDM.fx, 'bilinear')
+                        % it will fail if there are no elastic cases
+                        elasticCases = ductThresholds(m,:) <= 1;
+
+                        fragMedian(m,elasticCases) = ...
+                            ductThresholds(m,elasticCases) * fy(m);
+                        fragMedian(m,~elasticCases) = self.fragFormula.eta(...
+                            ductThresholds(m,~elasticCases), powerLaw(m,1)) * fy(m);
+                        
+                        fragStDev(m,elasticCases) = 0.01;
+                        fragStDev(m,~elasticCases) = self.fragFormula.beta(...
+                            powerLaw(m,2));
+                    else 
+                        fragMedian(m,:) = self.fragFormula.eta(...
+                            ductThresholds(m,~elasticCases), ...
+                            powerLaw(m,1), powerLaw(m,2)) * fy(m);
+                        
+                        fragStDev(m,:) = self.fragFormula.beta(...
+                            powerLaw(m,2), powerLaw(m,3));
+                    end
+
                 end
             else
                 fragMedian = NaN;
@@ -272,16 +308,16 @@ classdef surrogatedPSDM
             defOptionsGP = self.setDefaultGP;
             
             % build basic parameters
-            macroFieldsPar = {'GP', 'Parametric', 'General'};
+            macroFieldsPar = {'GP', 'Parametric', 'PSDM'};
             
-            microFieldsPar{1} = {'optionsGP', 'slopeInput', 'sigmaInput'};
-            microFieldsParVals{1} = { defOptionsGP, {'HYST', 'per'}, {'HYST', 'per'} };
+            microFieldsPar{1} = {'optionsGP', 'variablesInput'};
+            microFieldsParVals{1} = { defOptionsGP, {'HYST', 'per', 'strength', 'hard'}};
             
             microFieldsPar{2} = {'Dummy'};
             microFieldsParVals{2} = {{''}};
             
-            microFieldsPar{3} = {'minPointsPSDM' };
-            microFieldsParVals{3} = { 10 };
+            microFieldsPar{3} = {'minPoints', 'fx' };
+            microFieldsParVals{3} = { 10, 'bilinear' };
             
             for F = 1 : numel(macroFieldsPar)
                 for f = 1 : numel(microFieldsPar{F})
@@ -304,8 +340,8 @@ classdef surrogatedPSDM
         end
         
         
-        function inputInd = getInputIndices(self, targetTable, nameReg)
-            inputNames = self.parameters.GP.([nameReg 'Input']);
+        function inputInd = getInputIndices(self, targetTable)
+            inputNames = self.parameters.GP.variablesInput;
             for p = numel(inputNames) : -1 : 1
                 inputInd(p) = find(...
                     strcmp(targetTable.Properties.VariableNames, ...
@@ -319,9 +355,8 @@ classdef surrogatedPSDM
     
     methods(Static)
         
-
         function [a, sigma, NpointsReg, PSDMformula, fragFormula] = ...
-                fitPSDM(IM, EDP, EDPds4)
+                fitPSDMbilinear(IM, EDP, EDPds4)
             %fitPSDM fits the law MU = a.*(R-1) + 1; R = SA/SAy
             % if you want different fitting methods, copy from "comparePSDMs"
             
@@ -360,6 +395,49 @@ classdef surrogatedPSDM
         end
         
         
+        function [a, b, sigma, NpointsReg, PSDMformula, fragFormula] = ...
+                fitPSDMpowerlaw(IM, EDP, EDPds4)
+            %fitPSDM fits the law MU = a.*R^b; R = SA/SAy
+            
+            % the 1.05 limit (instead of 1) avoids logs too close to zero
+            toInclude = EDP > 1.00 & IM > 1 & EDP <= EDPds4;
+            NpointsReg = sum(toInclude);
+            
+            [xData, yData] = prepareCurveData( ...
+                log(IM(toInclude)), log(EDP(toInclude)) );
+            
+            lm = fitlm(xData, yData);
+            a = exp(lm.Coefficients.Estimate(1));
+            b = lm.Coefficients.Estimate(2);
+            
+            resid = log(EDP(toInclude)) - (log(a) + b.*log(IM(toInclude)));
+            sigma = std( resid );
+            
+            % TODO: check formulas
+            PSDMformula.mu = @(R,a,b,sigma) a.*R.^b + 0*sigma;
+            PSDMformula.R = @(mu,a,b,sigma) exp((log(mu)-log(a))/b ) + 0*sigma;
+
+            % TODO: check formulas
+            fragFormula.eta = @(muCap,a,b) exp((log(mu)-log(a))/b );
+            fragFormula.beta = @(sigma,b) (sigma/b);
+            
+%             %%% Control plot
+%             dummyMU = 0:0.01:6;
+%             figure; hold on
+%             scatter(IM(toInclude), EDP(toInclude))
+%             plot(PSDMformula.R(dummyMU, a, b, 0), dummyMU, 'k', ...
+%                 'LineWidth', 2)
+%             plot([0 PSDMformula.R(dummyMU, a, b, sigma)], ...
+%                 [0 dummyMU], '--k', 'LineWidth', 1)
+%             plot([0 PSDMformula.R(dummyMU, a, b, -sigma)], ...
+%                 [0 dummyMU], '--k', 'LineWidth', 1)
+%             xlabel('R [-]')
+%             ylabel('\mu [-]')
+%             set(gca, 'FontSize', 18)
+            
+        end
+
+
         function C = struct2pairs(S)
             %Turns a scalar struct S into a cell of string-value pairs C
             
